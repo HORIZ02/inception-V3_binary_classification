@@ -1,0 +1,76 @@
+im_height=224
+im_width=224
+batch_size = 64
+epochs =500
+test_dir = ""
+test_image_generator = ImageDataGenerator(rescale=1./255)
+test_data_gen = test_image_generator.flow_from_directory(directory=test_dir,
+                                                         batch_size=batch_size,
+                                                         shuffle=False,
+                                                         target_size=(im_height, im_width),
+                                                         class_mode='sparse',classes=["benign","malignant"])
+
+total_test = test_data_gen.n
+covn_base =tf.keras.applications.InceptionV3(weights='imagenet', include_top=False,input_shape=(im_height,im_width,3),pooling='avg')
+covn_base.trainable = False
+
+import sklearn.metrics as sm
+from sklearn import metrics
+
+def predict(data,model):
+	y_true=[]
+	y_predict=[]
+	count=0
+	for s in data:
+		count+=1
+		
+		img,label=s
+		
+		pred_y=model.predict(img)[0].tolist()[0]
+		label=label.tolist()[0]
+		y_true.append(label)
+		y_predict.append(pred_y)
+		label="" if label==1 else ""
+		print(count,":"+str(round(pred_y,3)),":"+label)
+		if count>=data.n:
+			break
+	return y_true,y_predict
+
+model=tf.keras.models.load_model("InceptionV3.h5")
+y_true,y_predict=predict(test_data_gen,model)
+auc = metrics.roc_auc_score(y_true,y_predict)
+print("auc",auc)
+predict_label=[0 if s<0.5 else 1 for s in y_predict]
+
+
+print("auc",auc)
+m = sm.confusion_matrix(y_true,predict_label)
+print("confusion_matrix",m,sep='\n')
+
+r = sm.classification_report(predict_label,y_true)
+print('：', r, sep='\n')
+
+mp.xticks([0,1])
+mp.yticks([0,1])
+plt.ylabel('Predicted label')
+plt.xlabel('True label')  
+mp.imshow(m, cmap='Blues')
+mp.show()
+
+from sklearn.metrics import roc_curve,auc
+fpr,tpr,thresholds = roc_curve(y_true,predict_label)
+def plot_roc_curve(fpr, tpr):
+    plt.figure(figsize=(7, 5))
+    lw = 3
+    roc_auc = auc(fpr,tpr)
+    plt.plot(fpr, tpr, color='g',lw=lw, 
+             label='InceptionV3 ROC curve (area = %0.2f)' % roc_auc)
+    plt.plot([0,1], [0,1], color='navy', lw=lw, linestyle='--')
+    plt.xlim([0, 1.00])
+    plt.ylim([0, 1.05])
+    plt.xlabel('False Positive Rate')
+    plt.ylabel('True Positive Rate')
+    plt.title('Receiver operating characteristic example')
+    plt.legend(loc="lower right")
+    plt.show()  
+plot_roc_curve(fpr, tpr)  
